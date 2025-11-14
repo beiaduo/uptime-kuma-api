@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  uptime-kuma-rest-api:
+    build: .
+    container_name: uptime-kuma-rest-api
+    restart: always
+    ports:
+      - "58273:58273"
+    environment:
+      - UPTIME_KUMA_URL=${UPTIME_KUMA_URL}
+      - UPTIME_KUMA_USERNAME=${UPTIME_KUMA_USERNAME}
+      - UPTIME_KUMA_PASSWORD=${UPTIME_KUMA_PASSWORD}
+      - API_TOKEN=${API_TOKEN}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:58273/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
