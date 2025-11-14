@@ -25,8 +25,8 @@ CORS(app)  # 允许跨域请求
 
 # 配置
 UPTIME_KUMA_URL = os.getenv('UPTIME_KUMA_URL', 'http://127.0.0.1:3001')
-UPTIME_KUMA_USERNAME = os.getenv('UPTIME_KUMA_USERNAME', 'www.vircs.com')
-UPTIME_KUMA_PASSWORD = os.getenv('UPTIME_KUMA_PASSWORD', 'www.vircs.com')
+UPTIME_KUMA_USERNAME = os.getenv('UPTIME_KUMA_USERNAME', 'admin')
+UPTIME_KUMA_PASSWORD = os.getenv('UPTIME_KUMA_PASSWORD', 'admin')
 
 # API 认证 Token（修改为你自己的随机字符串）
 API_TOKEN = os.getenv('API_TOKEN', '3f9a8c7e2d1b5a4f6e8c9d0a7b3e1f2a4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f')
@@ -62,19 +62,20 @@ def get_api():
 
 @app.route('/')
 def index():
-    """API 文档"""
-    return jsonify({
-        'message': 'Uptime Kuma REST API',
-        'version': '2.0.0',
-        'endpoints': {
-            'GET /api/info': '获取系统信息',
-            'GET /api/monitors/<id>/performance': '获取监控器性能数据（含多时间段心跳）',
-        },
-        'example': {
-            'info': 'curl http://localhost:58273/api/info',
-            'performance': 'curl http://localhost:58273/api/monitors/1/performance'
-        }
-    })
+    """禁止未认证访问"""
+    return '', 404
+
+
+@app.errorhandler(404)
+def not_found(e):
+    """所有未定义的路由返回 404，不泄露任何信息"""
+    return '', 404
+
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """内部健康检查端点（仅用于 Docker 健康检查）"""
+    return 'OK', 200
 
 
 @app.route('/api/info', methods=['GET'])

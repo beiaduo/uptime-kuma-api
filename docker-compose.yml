@@ -13,7 +13,7 @@ services:
       - UPTIME_KUMA_PASSWORD=${UPTIME_KUMA_PASSWORD}
       - API_TOKEN=${API_TOKEN}
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:58273/', timeout=5)"]
+      test: ["CMD", "python", "-c", "import requests; r = requests.get('http://localhost:58273/health', timeout=5); exit(0 if r.status_code == 200 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
