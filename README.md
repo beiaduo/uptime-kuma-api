@@ -17,7 +17,7 @@
 
 **步骤 1**: 下载部署脚本
 ```bash
-wget https://raw.githubusercontent.com/beiaduo/uptime-kuma-api/master/deploy.sh
+wget https://github.com/beiaduo/uptime-kuma-api/releases/download/uptimekuma/deploy.sh
 chmod +x deploy.sh
 ```
 
