@@ -1,273 +1,211 @@
 # Uptime Kuma REST API
 
-将远程 Uptime Kuma 2.x 服务器的 Socket.IO API 封装成简单的 REST API，方便其他程序获取监控数据。
+将 Uptime Kuma 2.x 的 Socket.IO API 封装成简单的 REST API，方便其他程序通过 HTTP 获取监控数据。
 
-## 特性
+## 🚀 一键部署
 
-- ✅ 支持 Uptime Kuma 2.x
-- ✅ Bearer Token 认证保护
-- ✅ 完整的监控数据（Ping、Uptime、心跳）
-- ✅ 多时间段心跳数据（1h, 3h, 6h, 24h, 1周）
-- ✅ Docker 一键部署
-- ✅ 健康检查和自动重启
-
-## 快速部署（推荐）
-
-### 方式一：一键部署脚本
-
-**步骤 1**: 下载部署脚本
 ```bash
 wget https://github.com/beiaduo/uptime-kuma-api/releases/download/uptimekuma/deploy.sh
 chmod +x deploy.sh
-```
-
-**步骤 2**: 运行部署
-```bash
 ./deploy.sh
 ```
 
-脚本会自动：
-1. 检查并安装 Docker 和 docker-compose
-2. 克隆代码
-3. 配置环境变量（会自动生成随机 Token）
+部署脚本会自动完成：
+1. 安装 Docker 和 docker-compose（如果没有）
+2. 克隆代码到 `/opt/uptime-kuma-rest-api`
+3. 配置环境变量（自动生成随机 Token）
 4. 启动服务
-5. 测试 API
+5. 显示 API Token（请保存）
 
-### 方式二：手动 Docker 部署
+## 📊 API 功能说明
 
-```bash
-# 1. 克隆仓库
-git clone https://github.com/beiaduo/uptime-kuma-api.git
-cd uptime-kuma-api
-
-# 2. 配置环境变量
-cp .env.example .env
-nano .env  # 编辑配置
-
-# 3. 启动
-docker-compose up -d
-
-# 4. 查看日志
-docker-compose logs -f
-```
-
-## 本地开发
-
-### 1. 安装依赖
+### 端点 1：获取系统信息
 
 ```bash
-./安装.sh
+GET /api/info
 ```
 
-或手动安装：
+**用途**: 获取 Uptime Kuma 版本、数据库类型等基本信息
 
+**示例**:
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:58273/api/info
 ```
 
-### 2. 配置
-
-编辑 `rest_api_server.py`，修改配置：
-
-```python
-# Uptime Kuma 服务器地址和登录凭据
-UPTIME_KUMA_URL = 'http://your-server-ip:3001'
-UPTIME_KUMA_USERNAME = 'your-username'
-UPTIME_KUMA_PASSWORD = 'your-password'
-
-# API 认证 Token（重要！修改为随机字符串）
-API_TOKEN = 'your-secret-token-change-me'
-```
-
-或使用环境变量（推荐）：
-
-```bash
-export UPTIME_KUMA_URL="http://your-server-ip:3001"
-export UPTIME_KUMA_USERNAME="your-username"
-export UPTIME_KUMA_PASSWORD="your-password"
-export API_TOKEN="your-random-secret-token-here"
-```
-
-**生成随机 Token**：
-```bash
-# 使用 openssl 生成随机 token
-openssl rand -hex 32
-```
-
-### 3. 启动 REST API
-
-```bash
-./启动REST_API.sh
-```
-
-或手动启动：
-
-```bash
-source .venv/bin/activate
-python rest_api_server.py
-```
-
-REST API 将运行在 http://localhost:58273
-
-## API 端点
-
-所有 API 端点都需要在请求头中携带 Token：
-
-```
-Authorization: Bearer <your-api-token>
-```
-
-### 1. 获取系统信息
-
-```bash
-GET http://localhost:58273/api/info
-Header: Authorization: Bearer <your-api-token>
-```
-
-**请求示例**：
-```bash
-curl -H 'Authorization: Bearer your-api-token' http://localhost:58273/api/info
-```
-
-**响应示例**：
+**返回数据**:
 ```json
 {
   "success": true,
   "data": {
     "version": "2.0.2",
     "dbType": "sqlite",
-    "serverTimezone": "America/Los_Angeles"
+    "serverTimezone": "UTC"
   }
 }
 ```
 
-**认证失败响应**：
-```json
-{
-  "success": false,
-  "error": "Unauthorized: Invalid or missing API token"
-}
-```
-
-### 2. 获取监控器性能数据
+### 端点 2：获取监控器性能数据
 
 ```bash
-GET http://localhost:58273/api/monitors/<monitor_id>/performance
-Header: Authorization: Bearer <your-api-token>
+GET /api/monitors/<monitor_id>/performance
 ```
 
-**响应示例**：
+**用途**: 获取指定监控器的完整性能数据
+
+**示例**:
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:58273/api/monitors/1/performance
+```
+
+**返回数据**:
 ```json
 {
   "success": true,
   "monitor_id": 1,
-  "stats": [
-    {
-      "label": "Ping (Current)",
-      "value": 26.9,
-      "unit": "ms"
+  "stats": {
+    "ping": {
+      "current": 25.5,      // 当前 Ping (ms)
+      "avg_24h": 28.82      // 24小时平均 Ping (ms)
     },
-    {
-      "label": "Avg. Ping (24-hour)",
-      "value": 42.25,
-      "unit": "ms"
-    },
-    {
-      "label": "Uptime (24-hour)",
-      "value": 100,
-      "unit": "%"
-    },
-    {
-      "label": "Uptime (30-day)",
-      "value": 100,
-      "unit": "%"
+    "uptime": {
+      "24": 100,            // 24小时在线率 (%)
+      "720": 100,           // 30天在线率 (%)
+      "1y": 100             // 1年在线率 (%)
     }
-  ],
+  },
   "heartbeats": {
-    "recent_3h": [...],
-    "recent_6h": [...],
-    "recent_24h": [...],
-    "recent_1w": [...]
-  }
+    "recent_1h": [...],     // 最近1小时的心跳数据
+    "recent_3h": [...],     // 最近3小时的心跳数据
+    "recent_6h": [...],     // 最近6小时的心跳数据
+    "recent_24h": [...],    // 最近24小时的心跳数据
+    "recent_1w": [...]      // 最近1周的心跳数据
+  },
+  "uptime_bars": [
+    {
+      "status": 1,          // 状态: 1=在线, 0=离线
+      "time": "2025-11-14 02:16:19.658"
+    }
+  ]
 }
 ```
 
+## 📈 数据说明
+
+### stats - 统计数据
+- **ping.current**: 当前 Ping 值（毫秒）
+- **ping.avg_24h**: 24小时平均 Ping（毫秒）
+- **uptime.24**: 24小时在线率（百分比）
+- **uptime.720**: 30天在线率（百分比）
+- **uptime.1y**: 1年在线率（百分比）
+
+### heartbeats - 详细心跳数据
 每个心跳记录包含：
 - `id`: 心跳 ID
-- `status`: 状态值 (1=UP, 0=DOWN)
-- `status_name`: 状态名称
-- `ping`: Ping 值 (ms)
+- `status`: 状态（1=在线, 0=离线）
+- `status_name`: 状态名称（"UP"/"DOWN"）
+- `ping`: Ping 值（毫秒）
 - `time`: 时间戳
 - `duration`: 持续时间
 - `msg`: 消息
 - `important`: 是否重要
 - `down_count`: 宕机次数
 
-## 在其他程序中使用
+### uptime_bars - 状态竖条数据
+用于绘制状态时间线图表，只包含：
+- `status`: 1=在线, 0=离线
+- `time`: 时间戳
+
+## 💻 使用示例
 
 ### Python
-
 ```python
 import requests
 
-# 设置认证头
-headers = {'Authorization': 'Bearer your-api-token'}
+API_URL = "http://localhost:58273"
+TOKEN = "your-api-token"
+headers = {"Authorization": f"Bearer {TOKEN}"}
 
-# 获取系统信息
-response = requests.get('http://localhost:58273/api/info', headers=headers)
+# 获取监控器 1 的性能数据
+response = requests.get(f"{API_URL}/api/monitors/1/performance", headers=headers)
 data = response.json()
-print(f"Uptime Kuma 版本: {data['data']['version']}")
 
-# 获取监控器性能数据
-response = requests.get('http://localhost:58273/api/monitors/1/performance', headers=headers)
-data = response.json()
-for stat in data['stats']:
-    print(f"{stat['label']}: {stat['value']} {stat['unit']}")
+print(f"当前 Ping: {data['stats']['ping']['current']} ms")
+print(f"24小时在线率: {data['stats']['uptime']['24']}%")
+print(f"最近1小时心跳数: {len(data['heartbeats']['recent_1h'])}")
 ```
 
 ### JavaScript
-
 ```javascript
-// 获取性能数据
-fetch('http://localhost:58273/api/monitors/1/performance', {
-  headers: {
-    'Authorization': 'Bearer your-api-token'
-  }
+const API_URL = "http://localhost:58273";
+const TOKEN = "your-api-token";
+
+fetch(`${API_URL}/api/monitors/1/performance`, {
+  headers: {"Authorization": `Bearer ${TOKEN}`}
 })
-  .then(response => response.json())
+  .then(r => r.json())
   .then(data => {
-    console.log('Stats:', data.stats);
-    console.log('Recent 3h heartbeats:', data.heartbeats.recent_3h.length);
+    console.log("当前 Ping:", data.stats.ping.current, "ms");
+    console.log("24小时在线率:", data.stats.uptime["24"], "%");
   });
 ```
 
 ### cURL
-
 ```bash
-# 设置 Token
 TOKEN="your-api-token"
 
-# 获取系统信息
-curl -H "Authorization: Bearer $TOKEN" http://localhost:58273/api/info | jq
-
 # 获取性能数据
-curl -H "Authorization: Bearer $TOKEN" http://localhost:58273/api/monitors/1/performance | jq
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:58273/api/monitors/1/performance | jq
+
+# 只获取当前 Ping
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:58273/api/monitors/1/performance | jq '.stats.ping.current'
+
+# 只获取在线率
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:58273/api/monitors/1/performance | jq '.stats.uptime'
 ```
 
-## 版本信息
+## 🔧 管理
 
-- **Uptime Kuma**: 2.x
-- **Python**: 3.8+
-- **uptime-kuma-api**: 来自 PR #86 (支持 2.x)
+### 查看 Token
+```bash
+cat /opt/uptime-kuma-rest-api/.env | grep API_TOKEN
+```
 
-## 文件说明
+### 查看日志
+```bash
+cd /opt/uptime-kuma-rest-api
+docker-compose logs -f
+```
 
-- `rest_api_server.py` - REST API 服务器主文件
-- `启动REST_API.sh` - 一键启动脚本
-- `.archive/` - 归档的测试文件和文档
+### 重启服务
+```bash
+cd /opt/uptime-kuma-rest-api
+docker-compose restart
+```
 
-## License
+### 更新代码
+```bash
+cd /opt/uptime-kuma-rest-api
+git pull
+docker-compose up -d --build
+```
+
+## 🔒 安全特性
+
+- ✅ **Bearer Token 认证** - 所有 API 都需要认证
+- ✅ **无信息泄露** - 未认证访问返回 404
+- ✅ **冷门端口** - 使用 58273 端口
+- ✅ **随机 Token** - 部署时自动生成强随机 Token
+
+## 📦 技术栈
+
+- Python 3.11
+- Flask (REST API 框架)
+- Socket.IO (与 Uptime Kuma 通信)
+- Docker (容器化部署)
+
+## 📄 许可证
 
 MIT
