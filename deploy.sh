@@ -24,7 +24,7 @@ NC='\033[0m' # No Color
 
 # 默认配置
 INSTALL_DIR="/opt/uptime-kuma-rest-api"
-GITHUB_REPO="CHANGE_ME"  # ⚠️ 请在上传到 GitHub 后修改为你的仓库地址，例如: https://github.com/username/repo.git
+GITHUB_REPO="https://github.com/beiaduo/uptime-kuma-api.git"
 
 # 打印函数
 print_step() {

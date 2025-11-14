@@ -17,7 +17,7 @@
 
 **步骤 1**: 下载部署脚本
 ```bash
-wget https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/master/deploy.sh
+wget https://raw.githubusercontent.com/beiaduo/uptime-kuma-api/master/deploy.sh
 chmod +x deploy.sh
 ```
 
@@ -33,14 +33,12 @@ chmod +x deploy.sh
 4. 启动服务
 5. 测试 API
 
-> **注意**: 将 `YOUR_USERNAME/YOUR_REPO` 替换为你的 GitHub 用户名和仓库名
-
 ### 方式二：手动 Docker 部署
 
 ```bash
-# 1. 克隆仓库（替换为你的仓库地址）
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
+# 1. 克隆仓库
+git clone https://github.com/beiaduo/uptime-kuma-api.git
+cd uptime-kuma-api
 
 # 2. 配置环境变量
 cp .env.example .env
