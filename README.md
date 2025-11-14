@@ -102,11 +102,6 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
   - 适合实时状态展示
 - `time`: 时间格式为 `YYYY-MM-DD HH:MM:SS`（精确到秒），自动转换为服务器本地时区（可在 `info.serverTimezone` 查看）
 
-**性能优化**:
-- **内存缓存**: 数据缓存30秒，相同请求在缓存期内立即返回（< 10ms）
-- 首次请求: ~15秒（从 Uptime Kuma 获取数据）
-- 后续请求: < 10ms（从缓存返回）
-
 **⚠️ 隐私提醒**: `info.primaryBaseURL` 和 `name` 字段可能包含敏感信息（域名、IP地址），公开展示前建议进行处理。参考下方"数据隐私"章节。
 
 ## 管理

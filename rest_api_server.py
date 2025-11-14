@@ -21,15 +21,10 @@ import json
 import secrets
 import random
 import sys
-import time
 from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
-
-# 缓存配置
-CACHE_TTL = 30  # 缓存30秒
-cache = {}
 
 # 配置文件路径
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'api_config.json')
@@ -178,28 +173,6 @@ def get_api():
     return api
 
 
-def get_cached_data(cache_key, fetch_func):
-    """通用缓存函数"""
-    current_time = time.time()
-
-    # 检查缓存是否存在且未过期
-    if cache_key in cache:
-        cached_item = cache[cache_key]
-        if current_time - cached_item['timestamp'] < CACHE_TTL:
-            return cached_item['data']
-
-    # 缓存不存在或已过期，重新获取数据
-    data = fetch_func()
-
-    # 更新缓存
-    cache[cache_key] = {
-        'data': data,
-        'timestamp': current_time
-    }
-
-    return data
-
-
 @app.route('/')
 def index():
     """禁止未认证访问"""
@@ -221,24 +194,7 @@ def health_check():
 @app.route('/api/monitors/<int:monitor_id>', methods=['GET'])
 @require_token
 def get_monitor_performance(monitor_id):
-    """获取监控器完整数据（缓存30秒）"""
-    cache_key = f'monitor_{monitor_id}'
-
-    def fetch_monitor_data():
-        return _fetch_monitor_data(monitor_id)
-
-    try:
-        result = get_cached_data(cache_key, fetch_monitor_data)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-def _fetch_monitor_data(monitor_id):
-    """实际获取监控器数据的函数"""
+    """获取监控器完整数据"""
     try:
         api = get_api()
 
@@ -365,7 +321,7 @@ def _fetch_monitor_data(monitor_id):
                 })
             return result
 
-        return {
+        return jsonify({
             'success': True,
             'info': info,
             'name': monitor.get('name'),
@@ -379,9 +335,12 @@ def _fetch_monitor_data(monitor_id):
                 'one_month': convert_heartbeats(beats_1m)
             },
             'bar': simplify_heartbeats(beats_1h)
-        }
+        })
     except Exception as e:
-        raise e
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 if __name__ == '__main__':
