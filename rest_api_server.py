@@ -260,7 +260,7 @@ def get_monitor_performance(monitor_id):
                 return time_str
 
         # 数据降采样函数
-        def downsample_beats(beats, max_points=500):
+        def downsample_beats(beats, max_points):
             """如果数据点超过 max_points，进行均匀降采样"""
             if not beats or len(beats) <= max_points:
                 return beats
@@ -277,10 +277,9 @@ def get_monitor_performance(monitor_id):
             return sampled
 
         # 转换心跳数据的函数 - 只返回 ping, status, time
-        def convert_heartbeats(beats, apply_downsampling=True):
+        def convert_heartbeats(beats, max_points):
             # 先降采样
-            if apply_downsampling:
-                beats = downsample_beats(beats)
+            beats = downsample_beats(beats, max_points)
 
             result = []
             for beat in beats:
@@ -327,12 +326,12 @@ def get_monitor_performance(monitor_id):
             'name': monitor.get('name'),
             'stats': stats,
             'chart': {
-                'one_hour': convert_heartbeats(beats_1h),
-                'three_hours': convert_heartbeats(beats_3h),
-                'six_hours': convert_heartbeats(beats_6h),
-                'one_day': convert_heartbeats(beats_24h),
-                'one_week': convert_heartbeats(beats_1w),
-                'one_month': convert_heartbeats(beats_1m)
+                'one_hour': convert_heartbeats(beats_1h, 60),      # 1小时：60条
+                'three_hours': convert_heartbeats(beats_3h, 90),   # 3小时：90条
+                'six_hours': convert_heartbeats(beats_6h, 120),    # 6小时：120条
+                'one_day': convert_heartbeats(beats_24h, 144),     # 24小时：144条（每10分钟1条）
+                'one_week': convert_heartbeats(beats_1w, 168),     # 1周：168条（每小时1条）
+                'one_month': convert_heartbeats(beats_1m, 180)     # 1月：180条（每4小时1条）
             },
             'bar': simplify_heartbeats(beats_1h)
         })
