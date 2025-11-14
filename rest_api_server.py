@@ -7,11 +7,9 @@ Uptime Kuma REST API 服务器
 其他程序可以通过 HTTP 请求获取监控信息
 
 使用方法:
-    python rest_api_server.py
-
-然后可以用 cURL/浏览器访问:
-    http://localhost:58273/api/info
-    http://localhost:58273/api/monitors/<id>/performance
+    首次运行: python rest_api_server.py --setup
+    启动服务: python rest_api_server.py
+    修改配置: python rest_api_server.py --config
 """
 
 from flask import Flask, jsonify, request
@@ -19,17 +17,131 @@ from flask_cors import CORS
 from uptime_kuma_api import UptimeKumaApi
 from functools import wraps
 import os
+import json
+import secrets
+import random
+import sys
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
 
-# 配置
-UPTIME_KUMA_URL = os.getenv('UPTIME_KUMA_URL', 'http://127.0.0.1:3001')
-UPTIME_KUMA_USERNAME = os.getenv('UPTIME_KUMA_USERNAME', 'admin')
-UPTIME_KUMA_PASSWORD = os.getenv('UPTIME_KUMA_PASSWORD', 'admin')
+# 配置文件路径
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'api_config.json')
 
-# API 认证 Token（修改为你自己的随机字符串）
-API_TOKEN = os.getenv('API_TOKEN', '3f9a8c7e2d1b5a4f6e8c9d0a7b3e1f2a4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f')
+def generate_random_port():
+    """生成随机端口 (49152-65535)"""
+    return random.randint(49152, 65535)
+
+def generate_random_token():
+    """生成随机 API Token"""
+    return secrets.token_hex(32)
+
+def load_config():
+    """加载配置文件"""
+    if not os.path.exists(CONFIG_FILE):
+        return None
+    with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def save_config(config):
+    """保存配置文件"""
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+
+def setup_config():
+    """交互式配置"""
+    print("\n" + "=" * 50)
+    print("  Uptime Kuma REST API - 配置向导")
+    print("=" * 50 + "\n")
+
+    config = {}
+
+    # Uptime Kuma 配置
+    config['uptime_kuma_url'] = input("Uptime Kuma URL: ").strip()
+    config['uptime_kuma_username'] = input("Uptime Kuma 用户名: ").strip()
+    config['uptime_kuma_password'] = input("Uptime Kuma 密码: ").strip()
+
+    # API 配置
+    use_random_port = input("\n使用随机端口? (y/n, 默认 y): ").strip().lower()
+    if use_random_port in ['', 'y', 'yes']:
+        config['api_port'] = generate_random_port()
+        print(f"已生成随机端口: {config['api_port']}")
+    else:
+        port = input("API 端口 (默认 58273): ").strip()
+        config['api_port'] = int(port) if port else 58273
+
+    # Token 配置
+    use_random_token = input("\n使用随机生成的 Token? (y/n, 默认 y): ").strip().lower()
+    if use_random_token in ['', 'y', 'yes']:
+        config['api_token'] = generate_random_token()
+        print(f"已生成随机 Token: {config['api_token']}")
+    else:
+        config['api_token'] = input("API Token: ").strip()
+
+    save_config(config)
+
+    print("\n" + "=" * 50)
+    print("  配置已保存!")
+    print("=" * 50)
+    print(f"  API 地址: http://localhost:{config['api_port']}/api/monitors/<id>")
+    print(f"  Token: {config['api_token']}")
+    print("=" * 50 + "\n")
+
+def modify_config():
+    """修改现有配置"""
+    config = load_config()
+    if not config:
+        print("\n配置文件不存在，请先运行 --setup")
+        sys.exit(1)
+
+    print("\n" + "=" * 50)
+    print("  修改配置 (留空保持不变)")
+    print("=" * 50 + "\n")
+
+    print(f"当前 Uptime Kuma URL: {config.get('uptime_kuma_url', 'N/A')}")
+    new_url = input("新 URL: ").strip()
+    if new_url:
+        config['uptime_kuma_url'] = new_url
+
+    print(f"\n当前用户名: {config.get('uptime_kuma_username', 'N/A')}")
+    new_username = input("新用户名: ").strip()
+    if new_username:
+        config['uptime_kuma_username'] = new_username
+
+    print(f"\n当前密码: {'*' * 8}")
+    new_password = input("新密码: ").strip()
+    if new_password:
+        config['uptime_kuma_password'] = new_password
+
+    print(f"\n当前端口: {config.get('api_port', 'N/A')}")
+    new_port = input("新端口 (输入 'random' 生成随机端口): ").strip()
+    if new_port == 'random':
+        config['api_port'] = generate_random_port()
+        print(f"已生成随机端口: {config['api_port']}")
+    elif new_port:
+        config['api_port'] = int(new_port)
+
+    print(f"\n当前 Token: {config.get('api_token', 'N/A')[:16]}...")
+    new_token = input("新 Token (输入 'random' 生成随机 Token): ").strip()
+    if new_token == 'random':
+        config['api_token'] = generate_random_token()
+        print(f"已生成随机 Token: {config['api_token']}")
+    elif new_token:
+        config['api_token'] = new_token
+
+    save_config(config)
+
+    print("\n" + "=" * 50)
+    print("  配置已更新!")
+    print("=" * 50 + "\n")
+
+# 加载配置（必须先运行 --setup）
+config = load_config()
+UPTIME_KUMA_URL = config.get('uptime_kuma_url') if config else None
+UPTIME_KUMA_USERNAME = config.get('uptime_kuma_username') if config else None
+UPTIME_KUMA_PASSWORD = config.get('uptime_kuma_password') if config else None
+API_PORT = config.get('api_port') if config else None
+API_TOKEN = config.get('api_token') if config else None
 
 def require_token(f):
     """API Token 认证装饰器"""
@@ -78,44 +190,29 @@ def health_check():
     return 'OK', 200
 
 
-@app.route('/api/info', methods=['GET'])
-@require_token
-def get_info():
-    """获取系统信息"""
-    try:
-        api = get_api()
-        info = api.info()
-        api.disconnect()
-        return jsonify({
-            'success': True,
-            'data': info
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@app.route('/api/monitors/<int:monitor_id>/performance', methods=['GET'])
+@app.route('/api/monitors/<int:monitor_id>', methods=['GET'])
 @require_token
 def get_monitor_performance(monitor_id):
-    """获取监控器性能数据（包含4个关键指标和不同时间段的心跳数据）"""
+    """获取监控器性能数据"""
     try:
         api = get_api()
+
+        # 获取系统信息
+        info = api.info()
+
+        # 获取监控器基本信息
+        monitor = api.get_monitor(monitor_id)
 
         # 获取所有必要的数据
         all_uptime = api.uptime()
         all_avg_ping = api.avg_ping()
 
         # 获取不同时间段的心跳数据
-        # API 只能获取"最近X小时"的数据，无法获取特定区间
-        # 所以我们获取完整数据，然后在程序中过滤
-        beats_1h = api.get_monitor_beats(monitor_id, 1)    # 0-60分钟
-        beats_3h = api.get_monitor_beats(monitor_id, 3)    # 0-3小时
-        beats_6h = api.get_monitor_beats(monitor_id, 6)    # 0-6小时
-        beats_24h = api.get_monitor_beats(monitor_id, 24)  # 0-24小时
-        beats_1w = api.get_monitor_beats(monitor_id, 168)  # 0-1周
+        beats_1h = api.get_monitor_beats(monitor_id, 1)
+        beats_3h = api.get_monitor_beats(monitor_id, 3)
+        beats_6h = api.get_monitor_beats(monitor_id, 6)
+        beats_24h = api.get_monitor_beats(monitor_id, 24)
+        beats_1w = api.get_monitor_beats(monitor_id, 168)
 
         api.disconnect()
 
@@ -129,40 +226,27 @@ def get_monitor_performance(monitor_id):
             last_heartbeat = beats_1h[-1]
             current_ping = last_heartbeat.get('ping')
 
-        # 转换心跳数据的函数
+        # 转换心跳数据的函数 - 只返回 ping, status, time
         def convert_heartbeats(beats):
             result = []
             for beat in beats:
                 status = beat.get('status')
                 status_value = status.value if hasattr(status, 'value') else status
-                status_name = status.name if hasattr(status, 'name') else str(status)
 
                 result.append({
-                    'id': beat.get('id'),
-                    'status': status_value,
-                    'status_name': status_name,
                     'ping': beat.get('ping'),
-                    'time': beat.get('time'),
-                    'duration': beat.get('duration'),
-                    'msg': beat.get('msg'),
-                    'important': beat.get('important'),
-                    'down_count': beat.get('down_count')
+                    'status': status_value,  # 1=UP, 0=DOWN
+                    'time': beat.get('time')  # 已经是标准日期时间格式
                 })
             return result
 
-        # 统计数据 - 返回原始数据
-        # 需要将 uptime_data 的键统一转换为字符串，并转换为百分比
-        uptime_formatted = {}
-        for key, value in uptime_data.items():
-            key_str = str(key)  # 确保键是字符串
-            uptime_formatted[key_str] = value * 100 if value is not None else None
-
+        # 统计数据 - 使用清晰的英文键名
         stats = {
-            'ping': {
-                'current': current_ping,
-                'avg_24h': avg_ping
-            },
-            'uptime': uptime_formatted  # 格式化后的 uptime 数据
+            'current_ping': round(current_ping, 2) if current_ping is not None else None,
+            'avg_ping': round(avg_ping, 2) if avg_ping is not None else None,
+            'uptime_one_day': round(uptime_data.get(24) * 100, 2) if uptime_data.get(24) is not None else None,
+            'uptime_one_month': round(uptime_data.get(720) * 100, 2) if uptime_data.get(720) is not None else None,
+            'uptime_one_year': round(uptime_data.get('1y') * 100, 2) if uptime_data.get('1y') is not None else None
         }
 
         # 简化的心跳数据 - 只包含 status 和 time（用于竖条图）
@@ -181,16 +265,55 @@ def get_monitor_performance(monitor_id):
 
         return jsonify({
             'success': True,
-            'monitor_id': monitor_id,
+            'info': info,
+            'name': monitor.get('name'),
             'stats': stats,
-            'heartbeats': {
-                'recent_1h': convert_heartbeats(beats_1h),   # 最近1小时 (60分钟)
-                'recent_3h': convert_heartbeats(beats_3h),   # 最近3小时
-                'recent_6h': convert_heartbeats(beats_6h),   # 最近6小时
-                'recent_24h': convert_heartbeats(beats_24h), # 最近24小时
-                'recent_1w': convert_heartbeats(beats_1w)    # 最近1周
+            'chart': {
+                'one_hour': convert_heartbeats(beats_1h),
+                'three_hours': convert_heartbeats(beats_3h),
+                'six_hours': convert_heartbeats(beats_6h),
+                'one_day': convert_heartbeats(beats_24h),
+                'one_week': convert_heartbeats(beats_1w)
             },
-            'uptime_bars': simplify_heartbeats(beats_24h)  # 24小时的竖条状态数据
+            'bar': simplify_heartbeats(beats_1h),
+            'docs': {
+                'endpoint': f'/api/monitors/{monitor_id}',
+                'fields': {
+                    'info': 'Uptime Kuma system information (version, etc.)',
+                    'name': 'Monitor name',
+                    'stats': {
+                        'current_ping': 'Current ping in milliseconds',
+                        'avg_ping': 'Average ping in milliseconds (24h)',
+                        'uptime_one_day': 'Uptime percentage (24 hours)',
+                        'uptime_one_month': 'Uptime percentage (30 days)',
+                        'uptime_one_year': 'Uptime percentage (1 year)'
+                    },
+                    'chart': {
+                        'description': 'Heartbeat data for different time ranges',
+                        'fields': {
+                            'ping': 'Response time in milliseconds',
+                            'status': 'Status (1=UP, 0=DOWN)',
+                            'time': 'Timestamp in ISO format'
+                        },
+                        'ranges': {
+                            'one_hour': 'Last 60 minutes',
+                            'three_hours': 'Last 3 hours',
+                            'six_hours': 'Last 6 hours',
+                            'one_day': 'Last 24 hours',
+                            'one_week': 'Last 7 days'
+                        }
+                    },
+                    'bar': {
+                        'description': 'Simplified status bar data (last 1 hour)',
+                        'fields': {
+                            'status': 'Status (1=UP, 0=DOWN)',
+                            'time': 'Timestamp'
+                        }
+                    }
+                },
+                'authentication': 'Bearer token required in Authorization header',
+                'example': f'curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:{API_PORT}/api/monitors/{monitor_id}'
+            }
         })
     except Exception as e:
         return jsonify({
@@ -200,28 +323,31 @@ def get_monitor_performance(monitor_id):
 
 
 if __name__ == '__main__':
-    print("=" * 60)
-    print("  Uptime Kuma REST API Server (精简版)")
-    print("=" * 60)
-    print(f"\n  Uptime Kuma URL: {UPTIME_KUMA_URL}")
-    print(f"  Uptime Kuma 版本: 2.x")
-    print(f"  REST API 地址: http://localhost:58273")
+    # 处理命令行参数
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '--setup':
+            setup_config()
+            sys.exit(0)
+        elif sys.argv[1] == '--config':
+            modify_config()
+            sys.exit(0)
+        elif sys.argv[1] == '--help':
+            print("\n使用方法:")
+            print("  python rest_api_server.py --setup   # 初始化配置")
+            print("  python rest_api_server.py --config  # 修改配置")
+            print("  python rest_api_server.py           # 启动服务")
+            sys.exit(0)
 
-    # 检查是否使用默认 Token
-    if API_TOKEN == 'your-secret-token-change-me':
-        print(f"\n  ⚠️  警告: 正在使用默认 API Token!")
-        print(f"  请修改 rest_api_server.py 中的 API_TOKEN")
-        print(f"  或设置环境变量: export API_TOKEN='your-random-token'")
-    else:
-        print(f"\n  ✅ API Token 已设置")
+    # 检查配置文件
+    if not load_config():
+        print("\n⚠️  配置文件不存在，请先运行: python rest_api_server.py --setup\n")
+        sys.exit(1)
 
-    print(f"\n  可用端点 (需要认证):")
-    print(f"    GET  http://localhost:58273/api/info")
-    print(f"    GET  http://localhost:58273/api/monitors/<id>/performance")
-    print(f"\n  测试命令 (带认证):")
-    print(f"    curl -H 'Authorization: Bearer {API_TOKEN}' http://localhost:58273/api/info")
-    print(f"    curl -H 'Authorization: Bearer {API_TOKEN}' http://localhost:58273/api/monitors/1/performance")
-    print("=" * 60)
-    print()
+    print("\n" + "=" * 50)
+    print("  Uptime Kuma REST API Server")
+    print("=" * 50)
+    print(f"  API: http://localhost:{API_PORT}/api/monitors/<id>")
+    print(f"  Token: {API_TOKEN[:16]}...")
+    print("=" * 50 + "\n")
 
-    app.run(host='0.0.0.0', port=58273, debug=True)
+    app.run(host='0.0.0.0', port=API_PORT, debug=True)
