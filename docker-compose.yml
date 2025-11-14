@@ -1,19 +1,13 @@
-version: '3.8'
-
 services:
   uptime-kuma-rest-api:
     build: .
     container_name: uptime-kuma-rest-api
     restart: always
-    ports:
-      - "58273:58273"
-    environment:
-      - UPTIME_KUMA_URL=${UPTIME_KUMA_URL}
-      - UPTIME_KUMA_USERNAME=${UPTIME_KUMA_USERNAME}
-      - UPTIME_KUMA_PASSWORD=${UPTIME_KUMA_PASSWORD}
-      - API_TOKEN=${API_TOKEN}
+    volumes:
+      - ./api_config.json:/app/api_config.json
+    network_mode: host
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; r = requests.get('http://localhost:58273/health', timeout=5); exit(0 if r.status_code == 200 else 1)"]
+      test: ["CMD-SHELL", "curl -f http://localhost:$$(python3 -c 'import json; print(json.load(open(\"/app/api_config.json\"))[\"api_port\"])')/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

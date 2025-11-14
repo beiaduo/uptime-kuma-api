@@ -4,7 +4,7 @@
 
 ## 快速安装
 
-### Docker 部署
+### Docker 部署（首次安装）
 
 ```bash
 # 1. 克隆代码
@@ -19,6 +19,16 @@ docker-compose up -d
 
 # 4. 查看配置
 cat api_config.json
+```
+
+### 更新到最新版本
+
+```bash
+# 1. 拉取最新代码
+git pull
+
+# 2. 重新构建并重启
+docker-compose up -d --build
 ```
 
 配置向导会询问：
