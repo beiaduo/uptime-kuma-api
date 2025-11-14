@@ -208,11 +208,12 @@ def get_monitor_performance(monitor_id):
         all_avg_ping = api.avg_ping()
 
         # 获取不同时间段的心跳数据
-        beats_1h = api.get_monitor_beats(monitor_id, 1)
-        beats_3h = api.get_monitor_beats(monitor_id, 3)
-        beats_6h = api.get_monitor_beats(monitor_id, 6)
-        beats_24h = api.get_monitor_beats(monitor_id, 24)
-        beats_1w = api.get_monitor_beats(monitor_id, 168)
+        beats_1h = api.get_monitor_beats(monitor_id, 1)     # 1小时
+        beats_3h = api.get_monitor_beats(monitor_id, 3)     # 3小时
+        beats_6h = api.get_monitor_beats(monitor_id, 6)     # 6小时
+        beats_24h = api.get_monitor_beats(monitor_id, 24)   # 24小时
+        beats_1w = api.get_monitor_beats(monitor_id, 168)   # 1周
+        beats_1m = api.get_monitor_beats(monitor_id, 720)   # 1个月 (30天)
 
         api.disconnect()
 
@@ -226,8 +227,29 @@ def get_monitor_performance(monitor_id):
             last_heartbeat = beats_1h[-1]
             current_ping = last_heartbeat.get('ping')
 
+        # 数据降采样函数
+        def downsample_beats(beats, max_points=500):
+            """如果数据点超过 max_points，进行均匀降采样"""
+            if not beats or len(beats) <= max_points:
+                return beats
+
+            # 计算采样间隔
+            step = len(beats) / max_points
+            sampled = []
+
+            for i in range(max_points):
+                index = int(i * step)
+                if index < len(beats):
+                    sampled.append(beats[index])
+
+            return sampled
+
         # 转换心跳数据的函数 - 只返回 ping, status, time
-        def convert_heartbeats(beats):
+        def convert_heartbeats(beats, apply_downsampling=True):
+            # 先降采样
+            if apply_downsampling:
+                beats = downsample_beats(beats)
+
             result = []
             for beat in beats:
                 status = beat.get('status')
@@ -250,8 +272,12 @@ def get_monitor_performance(monitor_id):
         }
 
         # 简化的心跳数据 - 只包含 status 和 time（用于竖条图）
-        def simplify_heartbeats(beats):
+        def simplify_heartbeats(beats, apply_downsampling=True):
             """简化心跳数据，只保留状态和时间"""
+            # 先降采样
+            if apply_downsampling:
+                beats = downsample_beats(beats)
+
             result = []
             for beat in beats:
                 status = beat.get('status')
@@ -273,47 +299,10 @@ def get_monitor_performance(monitor_id):
                 'three_hours': convert_heartbeats(beats_3h),
                 'six_hours': convert_heartbeats(beats_6h),
                 'one_day': convert_heartbeats(beats_24h),
-                'one_week': convert_heartbeats(beats_1w)
+                'one_week': convert_heartbeats(beats_1w),
+                'one_month': convert_heartbeats(beats_1m)
             },
-            'bar': simplify_heartbeats(beats_1h),
-            'docs': {
-                'endpoint': f'/api/monitors/{monitor_id}',
-                'fields': {
-                    'info': 'Uptime Kuma system information (version, etc.)',
-                    'name': 'Monitor name',
-                    'stats': {
-                        'current_ping': 'Current ping in milliseconds',
-                        'avg_ping': 'Average ping in milliseconds (24h)',
-                        'uptime_one_day': 'Uptime percentage (24 hours)',
-                        'uptime_one_month': 'Uptime percentage (30 days)',
-                        'uptime_one_year': 'Uptime percentage (1 year)'
-                    },
-                    'chart': {
-                        'description': 'Heartbeat data for different time ranges',
-                        'fields': {
-                            'ping': 'Response time in milliseconds',
-                            'status': 'Status (1=UP, 0=DOWN)',
-                            'time': 'Timestamp in ISO format'
-                        },
-                        'ranges': {
-                            'one_hour': 'Last 60 minutes',
-                            'three_hours': 'Last 3 hours',
-                            'six_hours': 'Last 6 hours',
-                            'one_day': 'Last 24 hours',
-                            'one_week': 'Last 7 days'
-                        }
-                    },
-                    'bar': {
-                        'description': 'Simplified status bar data (last 1 hour)',
-                        'fields': {
-                            'status': 'Status (1=UP, 0=DOWN)',
-                            'time': 'Timestamp'
-                        }
-                    }
-                },
-                'authentication': 'Bearer token required in Authorization header',
-                'example': f'curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:{API_PORT}/api/monitors/{monitor_id}'
-            }
+            'bar': simplify_heartbeats(beats_1h)
         })
     except Exception as e:
         return jsonify({

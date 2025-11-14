@@ -48,9 +48,10 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 {
   "success": true,                    // 请求是否成功
   "info": {                           // Uptime Kuma 系统信息
-    "version": "2.x.x"                // 版本号
+    "version": "2.0.2",               // 版本号
+    "primaryBaseURL": "xxxxxx"  // ⚠️ 域名（建议隐藏）
   },
-  "name": "监控器名称",                // 监控器名称
+  "name": "xxxxxx",        // ⚠️ 监控器名称（隐藏）
   "stats": {                          // 统计数据
     "current_ping": 16.70,            // 当前 Ping 值（毫秒）
     "avg_ping": 16.42,                // 24小时平均 Ping 值（毫秒）
@@ -59,24 +60,36 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
     "uptime_one_year": 99.97          // 在线率，1年（百分比，保留2位小数）
   },
   "chart": {                          // 图表数据，包含 ping、status、time
-    "one_hour": [...],                // 最近1小时的心跳数据
+    "one_hour": [                     // 最近1小时的心跳数据
+      {
+        "ping": 16.7,                 // 响应时间（毫秒）
+        "status": 1,                  // 状态（1=在线, 0=离线）
+        "time": "2025-11-14 05:33:14.496"  // 时间戳
+      }
+    ],
     "three_hours": [...],             // 最近3小时的心跳数据
     "six_hours": [...],               // 最近6小时的心跳数据
     "one_day": [...],                 // 最近24小时的心跳数据
-    "one_week": [...]                 // 最近1周的心跳数据
+    "one_week": [...],                // 最近1周的心跳数据
+    "one_month": [...]                // 最近1个月的心跳数据
   },
-  "bar": [...],                       // 状态条数据，最近1小时（仅 status、time）
-  "docs": {                           // API 完整说明文档
-    "...": "字段说明、使用示例等"
-  }
+  "bar": [                            // 状态条数据，最近1小时（仅 status、time）
+    {
+      "status": 1,                    // 状态（1=在线, 0=离线）
+      "time": "2025-11-14 05:33:14.496"
+    }
+  ]
 }
 ```
 
 **字段说明**:
 - `stats`: 所有数值保留2位小数，uptime 为百分比格式
 - `chart`: 每条记录包含 `ping`(毫秒)、`status`(1=在线/0=离线)、`time`(时间戳)
-- `bar`: 简化版数据，仅包含 `status` 和 `time`，用于绘制状态条
-- `docs`: API 自带完整文档，包含所有字段的详细说明和使用示例
+  - **智能降采样**: 每个时间范围独立判断，超过 500 个点时自动按时间均匀采样，否则返回全部数据
+  - 保证图表渲染性能的同时，短时间范围保留完整细节
+- `bar`: 简化版数据，仅包含 `status` 和 `time`，用于绘制状态条（同样应用降采样规则）
+
+**⚠️ 隐私提醒**: `info.primaryBaseURL` 和 `name` 字段可能包含敏感信息（域名、IP地址），公开展示前建议进行处理。参考下方"数据隐私"章节。
 
 ## 管理
 
@@ -153,6 +166,25 @@ fetch("http://localhost:PORT/api/monitors/1", {
 - ✅ **随机端口/Token** - 安装时可自动生成
 - ✅ **无信息泄露** - 未认证访问返回 404
 - ✅ **纯净源码** - Python 代码中不包含任何敏感信息
+
+## 数据隐私
+
+**需要隐藏的字段**：
+- `info.primaryBaseURL` - 域名
+- `name` - 可能包含 IP 或主机名
+
+**处理示例**（Python）：
+```python
+import re
+data['info']['primaryBaseURL'] = 'https://status.example.com'
+data['name'] = re.sub(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', 'x.x.x.x', data['name'])
+```
+
+**处理示例**（JavaScript）：
+```javascript
+data.info.primaryBaseURL = 'https://status.example.com'
+data.name = data.name.replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, 'x.x.x.x')
+```
 
 ## 技术栈
 
