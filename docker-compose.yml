@@ -4,11 +4,13 @@ services:
     container_name: uptime-kuma-rest-api
     restart: always
     volumes:
-      - ./api_config.json:/app/api_config.json
+      - ./:/app/host
     network_mode: host
+    environment:
+      - CONFIG_FILE=/app/host/api_config.json
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:$$(python3 -c 'import json; print(json.load(open(\"/app/api_config.json\"))[\"api_port\"])')/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:$$(python3 -c 'import json; print(json.load(open(\"/app/host/api_config.json\"))[\"api_port\"])' 2>/dev/null || echo 8080)/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 10s

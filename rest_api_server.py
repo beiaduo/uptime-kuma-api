@@ -26,8 +26,8 @@ from datetime import datetime, timezone, timedelta
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
 
-# 配置文件路径
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'api_config.json')
+# 配置文件路径（优先使用环境变量，否则使用当前目录）
+CONFIG_FILE = os.environ.get('CONFIG_FILE', os.path.join(os.path.dirname(__file__), 'api_config.json'))
 
 def generate_random_port():
     """生成随机端口 (49152-65535)"""
