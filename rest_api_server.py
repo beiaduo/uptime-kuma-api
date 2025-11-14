@@ -21,9 +21,15 @@ import json
 import secrets
 import random
 import sys
+import time
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
+
+# 缓存配置
+CACHE_TTL = 30  # 缓存30秒
+cache = {}
 
 # 配置文件路径
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'api_config.json')
@@ -172,6 +178,28 @@ def get_api():
     return api
 
 
+def get_cached_data(cache_key, fetch_func):
+    """通用缓存函数"""
+    current_time = time.time()
+
+    # 检查缓存是否存在且未过期
+    if cache_key in cache:
+        cached_item = cache[cache_key]
+        if current_time - cached_item['timestamp'] < CACHE_TTL:
+            return cached_item['data']
+
+    # 缓存不存在或已过期，重新获取数据
+    data = fetch_func()
+
+    # 更新缓存
+    cache[cache_key] = {
+        'data': data,
+        'timestamp': current_time
+    }
+
+    return data
+
+
 @app.route('/')
 def index():
     """禁止未认证访问"""
@@ -193,7 +221,24 @@ def health_check():
 @app.route('/api/monitors/<int:monitor_id>', methods=['GET'])
 @require_token
 def get_monitor_performance(monitor_id):
-    """获取监控器性能数据"""
+    """获取监控器完整数据（缓存30秒）"""
+    cache_key = f'monitor_{monitor_id}'
+
+    def fetch_monitor_data():
+        return _fetch_monitor_data(monitor_id)
+
+    try:
+        result = get_cached_data(cache_key, fetch_monitor_data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+def _fetch_monitor_data(monitor_id):
+    """实际获取监控器数据的函数"""
     try:
         api = get_api()
 
@@ -227,6 +272,37 @@ def get_monitor_performance(monitor_id):
             last_heartbeat = beats_1h[-1]
             current_ping = last_heartbeat.get('ping')
 
+        # 获取服务器时区偏移（从 info 中获取）
+        server_tz_offset = info.get('serverTimezoneOffset', '+00:00')  # 例如: "-08:00"
+
+        # 解析时区偏移
+        def parse_timezone_offset(offset_str):
+            """解析时区偏移字符串，返回 timedelta 对象"""
+            sign = 1 if offset_str[0] == '+' else -1
+            hours, minutes = map(int, offset_str[1:].split(':'))
+            return timedelta(hours=sign * hours, minutes=sign * minutes)
+
+        tz_offset = parse_timezone_offset(server_tz_offset)
+
+        # 时间格式化函数 - 将 UTC 时间转换为服务器本地时间
+        def format_time(time_str):
+            """将 UTC 时间转换为服务器本地时间"""
+            if not time_str:
+                return None
+            try:
+                # 解析 UTC 时间: "2025-11-14 07:39:34.818"
+                dt_utc = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S.%f")
+                dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+
+                # 转换为服务器本地时间
+                dt_local = dt_utc + tz_offset
+
+                # 返回格式化的本地时间字符串（精确到秒，不含毫秒）
+                return dt_local.strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                # 如果解析失败，返回原始值
+                return time_str
+
         # 数据降采样函数
         def downsample_beats(beats, max_points=500):
             """如果数据点超过 max_points，进行均匀降采样"""
@@ -258,7 +334,7 @@ def get_monitor_performance(monitor_id):
                 result.append({
                     'ping': beat.get('ping'),
                     'status': status_value,  # 1=UP, 0=DOWN
-                    'time': beat.get('time')  # 已经是标准日期时间格式
+                    'time': format_time(beat.get('time'))  # 格式化为 ISO 8601
                 })
             return result
 
@@ -272,11 +348,11 @@ def get_monitor_performance(monitor_id):
         }
 
         # 简化的心跳数据 - 只包含 status 和 time（用于竖条图）
-        def simplify_heartbeats(beats, apply_downsampling=True):
-            """简化心跳数据，只保留状态和时间"""
-            # 先降采样
-            if apply_downsampling:
-                beats = downsample_beats(beats)
+        def simplify_heartbeats(beats, max_points=60):
+            """简化心跳数据，只保留状态和时间，限制最多返回 max_points 个"""
+            # 限制数量：超过 max_points 只返回最后 max_points 个（最新的）
+            if beats and len(beats) > max_points:
+                beats = beats[-max_points:]
 
             result = []
             for beat in beats:
@@ -285,11 +361,11 @@ def get_monitor_performance(monitor_id):
 
                 result.append({
                     'status': status_value,  # 1=UP, 0=DOWN
-                    'time': beat.get('time')
+                    'time': format_time(beat.get('time'))  # 格式化为 ISO 8601
                 })
             return result
 
-        return jsonify({
+        return {
             'success': True,
             'info': info,
             'name': monitor.get('name'),
@@ -303,12 +379,9 @@ def get_monitor_performance(monitor_id):
                 'one_month': convert_heartbeats(beats_1m)
             },
             'bar': simplify_heartbeats(beats_1h)
-        })
+        }
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise e
 
 
 if __name__ == '__main__':

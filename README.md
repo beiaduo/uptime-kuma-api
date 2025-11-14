@@ -31,7 +31,7 @@ cat api_config.json
 
 ### 端点
 
-```
+```bash
 GET /api/monitors/<id>
 ```
 
@@ -64,7 +64,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
       {
         "ping": 16.7,                 // 响应时间（毫秒）
         "status": 1,                  // 状态（1=在线, 0=离线）
-        "time": "2025-11-14 05:33:14.496"  // 时间戳
+        "time": "2025-11-14 05:33:14"  // 时间戳（服务器本地时间）
       }
     ],
     "three_hours": [...],             // 最近3小时的心跳数据
@@ -76,7 +76,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
   "bar": [                            // 状态条数据，最近1小时（仅 status、time）
     {
       "status": 1,                    // 状态（1=在线, 0=离线）
-      "time": "2025-11-14 05:33:14.496"
+      "time": "2025-11-14 05:33:14"  // 时间戳（服务器本地时间）
     }
   ]
 }
@@ -87,7 +87,15 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 - `chart`: 每条记录包含 `ping`(毫秒)、`status`(1=在线/0=离线)、`time`(时间戳)
   - **智能降采样**: 每个时间范围独立判断，超过 500 个点时自动按时间均匀采样，否则返回全部数据
   - 保证图表渲染性能的同时，短时间范围保留完整细节
-- `bar`: 简化版数据，仅包含 `status` 和 `time`，用于绘制状态条（同样应用降采样规则）
+- `bar`: 简化版数据，仅包含 `status` 和 `time`，用于绘制状态条
+  - 限制最多返回 60 个数据点（最新的60个）
+  - 适合实时状态展示
+- `time`: 时间格式为 `YYYY-MM-DD HH:MM:SS`（精确到秒），自动转换为服务器本地时区（可在 `info.serverTimezone` 查看）
+
+**性能优化**:
+- **内存缓存**: 数据缓存30秒，相同请求在缓存期内立即返回（< 10ms）
+- 首次请求: ~15秒（从 Uptime Kuma 获取数据）
+- 后续请求: < 10ms（从缓存返回）
 
 **⚠️ 隐私提醒**: `info.primaryBaseURL` 和 `name` 字段可能包含敏感信息（域名、IP地址），公开展示前建议进行处理。参考下方"数据隐私"章节。
 
@@ -143,6 +151,7 @@ data = response.json()
 print(f"监控器: {data['name']}")
 print(f"当前 Ping: {data['stats']['current_ping']} ms")
 print(f"24小时在线率: {data['stats']['uptime_one_day']}%")
+print(f"24小时数据点数量: {len(data['chart']['one_day'])}")
 ```
 
 ### JavaScript
